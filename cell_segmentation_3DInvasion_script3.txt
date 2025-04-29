@@ -1,0 +1,109 @@
+
+
+// This script is for segmenting cells from the biomatrix
+// ImageJ can only handle about 1-2 GB of data at a time, so this has to be run in batches.
+// This script runs on the 3D stack (not 2D images)
+// This script requires 3 inputs:
+// 1. The start slice of the raw 3D stack file
+// 2. The end slice of the raw 3D stack file to analyze
+// 3. The file location inside the "open = [....]"
+
+// Define start and end slices for importing the stack
+start_slice = 701;
+end_slice = 1135;
+
+// Import the specified range of slices from the image stack
+run("Bio-Formats Importer", "open=[D:/Day 5 Oxaliplatin Plus Plus/P3/P3_stitched.tif] autoscale color_mode=Default display_metadata rois_import=[ROI manager]" +
+    " specify_range view=Hyperstack stack_order=XYCZT" + 
+    " z_begin=" + start_slice + 
+    " z_end=" + end_slice + 
+    " z_step=1");
+
+// Parameters for Enhance Local Contrast (CLAHE)
+blocksize = 20;
+histogram_bins = 256;
+maximum_slope = 3;
+mask = "*None*";
+fast = true;
+process_as_composite = true;
+
+// Get the dimensions of the stack
+getDimensions(width, height, channels, slices, frames);
+isComposite = channels > 1;
+parameters =
+    "blocksize=" + blocksize +
+    " histogram=" + histogram_bins +
+    " maximum=" + maximum_slope +
+    " mask=" + mask;
+if (fast) {
+    parameters += " fast_(less_accurate)";
+}
+if (isComposite && process_as_composite) {
+    parameters += " process_as_composite";
+    channels = 1;
+}
+
+// Loop through each frame, slice, and channel to apply CLAHE
+for (f = 1; f <= frames; f++) {
+    Stack.setFrame(f);
+    for (s = 1; s <= slices; s++) {
+        Stack.setSlice(s);
+        for (c = 1; c <= channels; c++) {
+            Stack.setChannel(c);
+            run("Enhance Local Contrast (CLAHE)", parameters);
+        }
+    }
+}
+
+// Subtract background for the entire stack
+run("Subtract Background...", "rolling=3 stack");
+
+// Sharpen the entire stack
+run("Sharpen", "stack");
+
+// Loop through each slice to perform FFT, clear the central circle, and inverse FFT
+for (s = 1; s <= slices; s++) {
+    Stack.setSlice(s);
+    
+    // Perform FFT
+    run("FFT");
+    
+    // Select the central circular region with a radius of 100 pixels
+    run("Make Circular Selection...", "radius=100");
+    
+    // Clear the interior of the circle
+    run("Clear", "slice");
+    
+    // Perform inverse FFT
+    run("Inverse FFT");
+    
+    // Apply auto-threshold using the IsoData method
+    run("Auto Threshold", "method=IsoData white");
+    run("Close-");
+    run("Open");
+
+    // Save the processed slice
+    actualSlice = start_slice + s - 1;
+    saveAs("Tiff", "D:/Day 5 Oxaliplatin Plus Plus/P3/Cells segmented/cellsSegmented_slice" + actualSlice + ".tif");
+    
+    // Get a list of open windows
+    winList = getList("image.titles");
+    
+    // Close any windows that start with "FFT"
+    for (i = 0; i < winList.length; i++) {
+        if (startsWith(winList[i], "FFT")) {
+            selectWindow(winList[i]);
+            close();
+        }
+    }
+    
+    // Close any windows that start with "Inverse"
+    for (i = 0; i < winList.length; i++) {
+        if (startsWith(winList[i], "cells")) {
+            selectWindow(winList[i]);
+            close();
+        }
+    }
+}
+
+print("Processing complete. Processed stack and individual slices saved.");

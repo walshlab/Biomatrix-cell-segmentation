@@ -1,0 +1,13 @@
+//This script uses Bio-Formats Importer to open the binarized biomatrix envelope and cell 3D tiff stacks
+//and save them as a single multi-dimensional (2-channel Z-stack) .tif stack for further analysis in Imaris
+//There are 3 inputs: (1) Envelope stack, (2) Cell stack, (3) Output File Name and location
+
+run("Bio-Formats Importer", "open=[E:/Day 5 Oxaliplatin/655nm dye/K3/envelope_binarized_stack.tif]"+ 
+" color_mode=Default display_metadata rois_import=[ROI manager] view=Hyperstack stack_order=XYCZT use_virtual_stack");
+
+run("Bio-Formats Importer", "open=[E:/Day 5 Oxaliplatin/655nm dye/K3/K3 binarized cell invasion.tif]"+
+" color_mode=Default display_metadata rois_import=[ROI manager] view=Hyperstack stack_order=XYCZT use_virtual_stack");
+
+run("Merge Channels...", "c1=[K3 binarized cell invasion.tif] c4=envelope_binarized_stack.tif create");
+
+saveAs("Tiff", "E:/Day 5 Oxaliplatin/655nm dye/K3/K3_testing.tif");
